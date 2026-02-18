@@ -22,18 +22,19 @@ class CancelBookingUseCase:
         Returns:
             True if canceled, False if not found
         """
+        session = getattr(self.booking_repository, "session", None)
+        if session:
+            if session.in_transaction():
+                return await self._cancel_booking(token)
+            async with session.begin():
+                return await self._cancel_booking(token)
+
+        return await self._cancel_booking(token)
+
+    async def _cancel_booking(self, token: str) -> bool:
         booking = await self.booking_repository.get_by_token(token)
         if not booking:
             return False
-
-        session = getattr(self.booking_repository, "session", None)
-        if session:
-            async with session.begin():
-                await self.time_slot_repository.release_spots(
-                    booking.time_slot_id,
-                    booking.number_of_seats,
-                )
-                return await self.booking_repository.delete(booking.id)
 
         await self.time_slot_repository.release_spots(
             booking.time_slot_id,
