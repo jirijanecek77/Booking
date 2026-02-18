@@ -1,16 +1,28 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { bookingAPI } from '../services/api';
 
-export default function BookingForm({ eventId, onSuccess, onCancel }) {
+export default function BookingForm({ timeSlots, defaultSlotId, onSuccess, onCancel }) {
+  const initialSlotId = defaultSlotId || timeSlots.find((slot) => slot.available_spots > 0)?.id;
   const [formData, setFormData] = useState({
-    event_id: eventId,
+    time_slot_id: initialSlotId || '',
     attendee_name: '',
-    attendee_email: '',
+    email: '',
     number_of_seats: 1,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
+
+  useEffect(() => {
+    if (defaultSlotId) {
+      setFormData((prev) => ({ ...prev, time_slot_id: defaultSlotId }));
+    }
+  }, [defaultSlotId]);
+
+  const selectedSlot = useMemo(
+    () => timeSlots.find((slot) => slot.id === formData.time_slot_id),
+    [formData.time_slot_id, timeSlots]
+  );
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -26,6 +38,11 @@ export default function BookingForm({ eventId, onSuccess, onCancel }) {
     setError(null);
 
     try {
+      if (selectedSlot && formData.number_of_seats > selectedSlot.available_spots) {
+        setError(`Only ${selectedSlot.available_spots} spots are available for this slot.`);
+        setLoading(false);
+        return;
+      }
       const response = await bookingAPI.createBooking(formData);
       setBookingConfirmation(response.data);
       setTimeout(() => {
@@ -52,13 +69,13 @@ export default function BookingForm({ eventId, onSuccess, onCancel }) {
         </div>
         <div className="space-y-2 text-green-800">
           <p><strong>Booking ID:</strong> {bookingConfirmation.id}</p>
+          <p><strong>Magic Code:</strong> {bookingConfirmation.booking_token}</p>
           <p><strong>Name:</strong> {bookingConfirmation.attendee_name}</p>
-          <p><strong>Email:</strong> {bookingConfirmation.attendee_email}</p>
+          <p><strong>Email:</strong> {bookingConfirmation.email || '—'}</p>
           <p><strong>Seats:</strong> {bookingConfirmation.number_of_seats}</p>
-          <p><strong>Status:</strong> <span className="font-semibold capitalize">{bookingConfirmation.status}</span></p>
         </div>
         <p className="mt-4 text-sm text-green-700">
-          A confirmation email has been sent to your email address.
+          Save the magic code to update or cancel your booking later.
         </p>
       </div>
     );
@@ -76,6 +93,26 @@ export default function BookingForm({ eventId, onSuccess, onCancel }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
+          <label htmlFor="time_slot_id" className="block text-sm font-medium text-gray-700 mb-1">
+            Time Slot *
+          </label>
+          <select
+            id="time_slot_id"
+            name="time_slot_id"
+            required
+            value={formData.time_slot_id}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            {timeSlots.map((slot) => (
+              <option key={slot.id} value={slot.id} disabled={slot.available_spots === 0}>
+                {slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)} · {slot.available_spots}/{slot.max_capacity} available
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
           <label htmlFor="attendee_name" className="block text-sm font-medium text-gray-700 mb-1">
             Full Name *
           </label>
@@ -92,15 +129,14 @@ export default function BookingForm({ eventId, onSuccess, onCancel }) {
         </div>
 
         <div>
-          <label htmlFor="attendee_email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address *
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            Email Address (optional)
           </label>
           <input
             type="email"
-            id="attendee_email"
-            name="attendee_email"
-            required
-            value={formData.attendee_email}
+            id="email"
+            name="email"
+            value={formData.email}
             onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             placeholder="john@example.com"
@@ -117,11 +153,16 @@ export default function BookingForm({ eventId, onSuccess, onCancel }) {
             name="number_of_seats"
             required
             min="1"
-            max="10"
+            max={selectedSlot?.available_spots || 1}
             value={formData.number_of_seats}
             onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
+          {selectedSlot && (
+            <p className="mt-1 text-xs text-gray-500">
+              {selectedSlot.available_spots} spots available for this slot.
+            </p>
+          )}
         </div>
 
         <div className="flex gap-3 pt-4">

@@ -29,29 +29,45 @@ class UpdateBookingUseCase:
         Raises:
             ValueError: If booking not found or new slot is full
         """
-        # Get existing booking
         booking = await self.booking_repository.get_by_token(token)
         if not booking:
             raise ValueError("Booking not found")
 
-        # Get old and new time slots
-        old_slot = await self.time_slot_repository.get_by_id(booking.time_slot_id)
-        new_slot = await self.time_slot_repository.get_by_id(new_time_slot_id)
+        if booking.time_slot_id == new_time_slot_id:
+            return booking
 
+        new_slot = await self.time_slot_repository.get_by_id(new_time_slot_id)
         if not new_slot:
             raise ValueError("New time slot not found")
 
-        if not new_slot.is_available():
+        if not new_slot.is_available(booking.number_of_seats):
             raise ValueError("New time slot is full")
 
-        # Update capacities
-        if old_slot:
-            old_slot.decrement_bookings()
-            await self.time_slot_repository.update(old_slot)
+        session = getattr(self.booking_repository, "session", None)
+        if session:
+            async with session.begin():
+                reserved = await self.time_slot_repository.reserve_spots(
+                    new_time_slot_id,
+                    booking.number_of_seats,
+                )
+                if not reserved:
+                    raise ValueError("New time slot is full")
+                await self.time_slot_repository.release_spots(
+                    booking.time_slot_id,
+                    booking.number_of_seats,
+                )
+                booking.time_slot_id = new_time_slot_id
+                return await self.booking_repository.update(booking)
 
-        new_slot.increment_bookings()
-        await self.time_slot_repository.update(new_slot)
-
-        # Update booking
+        reserved = await self.time_slot_repository.reserve_spots(
+            new_time_slot_id,
+            booking.number_of_seats,
+        )
+        if not reserved:
+            raise ValueError("New time slot is full")
+        await self.time_slot_repository.release_spots(
+            booking.time_slot_id,
+            booking.number_of_seats,
+        )
         booking.time_slot_id = new_time_slot_id
         return await self.booking_repository.update(booking)

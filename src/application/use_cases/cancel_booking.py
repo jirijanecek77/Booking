@@ -22,16 +22,21 @@ class CancelBookingUseCase:
         Returns:
             True if canceled, False if not found
         """
-        # Get booking
         booking = await self.booking_repository.get_by_token(token)
         if not booking:
             return False
 
-        # Update slot capacity
-        time_slot = await self.time_slot_repository.get_by_id(booking.time_slot_id)
-        if time_slot:
-            time_slot.decrement_bookings()
-            await self.time_slot_repository.update(time_slot)
+        session = getattr(self.booking_repository, "session", None)
+        if session:
+            async with session.begin():
+                await self.time_slot_repository.release_spots(
+                    booking.time_slot_id,
+                    booking.number_of_seats,
+                )
+                return await self.booking_repository.delete(booking.id)
 
-        # Delete booking
+        await self.time_slot_repository.release_spots(
+            booking.time_slot_id,
+            booking.number_of_seats,
+        )
         return await self.booking_repository.delete(booking.id)

@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -49,7 +49,10 @@ class SQLAlchemyEventRepository(EventRepository):
     async def create(self, event: Event) -> Event:
         model = self._to_model(event)
         self.session.add(model)
-        await self.session.commit()
+        if self.session.in_transaction():
+            await self.session.flush()
+        else:
+            await self.session.commit()
         await self.session.refresh(model)
         return self._to_entity(model)
 
@@ -87,7 +90,10 @@ class SQLAlchemyEventRepository(EventRepository):
             model.name = event.name
             model.event_date = event.event_date
             model.description = event.description
-            await self.session.commit()
+            if self.session.in_transaction():
+                await self.session.flush()
+            else:
+                await self.session.commit()
             await self.session.refresh(model)
             return self._to_entity(model)
         raise ValueError("Event not found")
@@ -98,7 +104,10 @@ class SQLAlchemyEventRepository(EventRepository):
         model = result.scalar_one_or_none()
         if model:
             await self.session.delete(model)
-            await self.session.commit()
+            if self.session.in_transaction():
+                await self.session.flush()
+            else:
+                await self.session.commit()
             return True
         return False
 
@@ -134,7 +143,10 @@ class SQLAlchemyTimeSlotRepository(TimeSlotRepository):
     async def create(self, time_slot: TimeSlot) -> TimeSlot:
         model = self._to_model(time_slot)
         self.session.add(model)
-        await self.session.commit()
+        if self.session.in_transaction():
+            await self.session.flush()
+        else:
+            await self.session.commit()
         await self.session.refresh(model)
         return self._to_entity(model)
 
@@ -159,10 +171,44 @@ class SQLAlchemyTimeSlotRepository(TimeSlotRepository):
             model.end_time = time_slot.end_time
             model.max_capacity = time_slot.max_capacity
             model.current_bookings = time_slot.current_bookings
-            await self.session.commit()
+            if self.session.in_transaction():
+                await self.session.flush()
+            else:
+                await self.session.commit()
             await self.session.refresh(model)
             return self._to_entity(model)
         raise ValueError("TimeSlot not found")
+
+    async def reserve_spots(self, slot_id: UUID, seats: int) -> bool:
+        if seats <= 0:
+            return False
+        stmt = (
+            update(TimeSlotModel)
+            .where(TimeSlotModel.id == slot_id)
+            .where(TimeSlotModel.current_bookings + seats <= TimeSlotModel.max_capacity)
+            .values(current_bookings=TimeSlotModel.current_bookings + seats)
+        )
+        result = await self.session.execute(stmt)
+        if self.session.in_transaction():
+            await self.session.flush()
+        else:
+            await self.session.commit()
+        return result.rowcount == 1
+
+    async def release_spots(self, slot_id: UUID, seats: int) -> None:
+        if seats <= 0:
+            return
+        stmt = (
+            update(TimeSlotModel)
+            .where(TimeSlotModel.id == slot_id)
+            .where(TimeSlotModel.current_bookings - seats >= 0)
+            .values(current_bookings=TimeSlotModel.current_bookings - seats)
+        )
+        await self.session.execute(stmt)
+        if self.session.in_transaction():
+            await self.session.flush()
+        else:
+            await self.session.commit()
 
     async def delete(self, slot_id: UUID) -> bool:
         stmt = select(TimeSlotModel).where(TimeSlotModel.id == slot_id)
@@ -170,7 +216,10 @@ class SQLAlchemyTimeSlotRepository(TimeSlotRepository):
         model = result.scalar_one_or_none()
         if model:
             await self.session.delete(model)
-            await self.session.commit()
+            if self.session.in_transaction():
+                await self.session.flush()
+            else:
+                await self.session.commit()
             return True
         return False
 
@@ -186,6 +235,7 @@ class SQLAlchemyBookingRepository(BookingRepository):
         return Booking(
             attendee_name=model.attendee_name,
             time_slot_id=model.time_slot_id,
+            number_of_seats=model.number_of_seats,
             booking_token=model.booking_token,
             booking_id=model.id,
             created_at=model.created_at,
@@ -198,6 +248,7 @@ class SQLAlchemyBookingRepository(BookingRepository):
             id=entity.id,
             attendee_name=entity.attendee_name,
             time_slot_id=entity.time_slot_id,
+            number_of_seats=entity.number_of_seats,
             booking_token=entity.booking_token,
             email=entity.email,
             created_at=entity.created_at,
@@ -206,7 +257,10 @@ class SQLAlchemyBookingRepository(BookingRepository):
     async def create(self, booking: Booking) -> Booking:
         model = self._to_model(booking)
         self.session.add(model)
-        await self.session.commit()
+        if self.session.in_transaction():
+            await self.session.flush()
+        else:
+            await self.session.commit()
         await self.session.refresh(model)
         return self._to_entity(model)
 
@@ -235,8 +289,12 @@ class SQLAlchemyBookingRepository(BookingRepository):
         if model:
             model.attendee_name = booking.attendee_name
             model.time_slot_id = booking.time_slot_id
+            model.number_of_seats = booking.number_of_seats
             model.email = booking.email
-            await self.session.commit()
+            if self.session.in_transaction():
+                await self.session.flush()
+            else:
+                await self.session.commit()
             await self.session.refresh(model)
             return self._to_entity(model)
         raise ValueError("Booking not found")
@@ -247,6 +305,9 @@ class SQLAlchemyBookingRepository(BookingRepository):
         model = result.scalar_one_or_none()
         if model:
             await self.session.delete(model)
-            await self.session.commit()
+            if self.session.in_transaction():
+                await self.session.flush()
+            else:
+                await self.session.commit()
             return True
         return False

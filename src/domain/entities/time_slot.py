@@ -22,20 +22,20 @@ class TimeSlot:
         self.max_capacity = max_capacity
         self.current_bookings = current_bookings
 
-    def is_available(self) -> bool:
-        """Check if slot has available capacity."""
-        return self.current_bookings < self.max_capacity
+    def is_available(self, seats: int = 1) -> bool:
+        """Check if slot has available capacity for the requested seats."""
+        return self.current_bookings + seats <= self.max_capacity
 
-    def increment_bookings(self) -> None:
+    def increment_bookings(self, seats: int = 1) -> None:
         """Increment booking count."""
-        if not self.is_available():
+        if not self.is_available(seats):
             raise ValueError("Time slot is full")
-        self.current_bookings += 1
+        self.current_bookings += seats
 
-    def decrement_bookings(self) -> None:
+    def decrement_bookings(self, seats: int = 1) -> None:
         """Decrement booking count."""
         if self.current_bookings > 0:
-            self.current_bookings -= 1
+            self.current_bookings = max(0, self.current_bookings - seats)
 
     def available_spots(self) -> int:
         """Get number of available spots."""

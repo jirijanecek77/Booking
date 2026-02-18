@@ -43,6 +43,7 @@ class EventResponse(BaseModel):
 class BookingCreate(BaseModel):
     attendee_name: str = Field(min_length=1, max_length=255)
     time_slot_id: UUID
+    number_of_seats: int = Field(gt=0)
     email: Optional[str] = None
 
 
@@ -50,6 +51,7 @@ class BookingResponse(BaseModel):
     id: UUID
     attendee_name: str
     time_slot_id: UUID
+    number_of_seats: int
     booking_token: str
     email: Optional[str]
     created_at: datetime

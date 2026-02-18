@@ -155,6 +155,7 @@ async def create_booking(booking_data: BookingCreate, db: AsyncSession = Depends
         booking = await use_case.execute(
             attendee_name=booking_data.attendee_name,
             time_slot_id=booking_data.time_slot_id,
+            number_of_seats=booking_data.number_of_seats,
             email=booking_data.email,
         )
 
@@ -162,6 +163,7 @@ async def create_booking(booking_data: BookingCreate, db: AsyncSession = Depends
             id=booking.id,
             attendee_name=booking.attendee_name,
             time_slot_id=booking.time_slot_id,
+            number_of_seats=booking.number_of_seats,
             booking_token=booking.booking_token,
             email=booking.email,
             created_at=booking.created_at,
@@ -185,6 +187,7 @@ async def get_booking(token: str, db: AsyncSession = Depends(get_db)):
         id=booking.id,
         attendee_name=booking.attendee_name,
         time_slot_id=booking.time_slot_id,
+        number_of_seats=booking.number_of_seats,
         booking_token=booking.booking_token,
         email=booking.email,
         created_at=booking.created_at,
@@ -207,6 +210,7 @@ async def update_booking(
             id=booking.id,
             attendee_name=booking.attendee_name,
             time_slot_id=booking.time_slot_id,
+            number_of_seats=booking.number_of_seats,
             booking_token=booking.booking_token,
             email=booking.email,
             created_at=booking.created_at,

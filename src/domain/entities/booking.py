@@ -11,6 +11,7 @@ class Booking:
         self,
         attendee_name: str,
         time_slot_id: UUID,
+        number_of_seats: int = 1,
         booking_token: Optional[str] = None,
         booking_id: Optional[UUID] = None,
         created_at: Optional[datetime] = None,
@@ -19,6 +20,7 @@ class Booking:
         self.id = booking_id or uuid4()
         self.attendee_name = attendee_name
         self.time_slot_id = time_slot_id
+        self.number_of_seats = number_of_seats
         self.booking_token = booking_token or self._generate_token()
         self.created_at = created_at or datetime.utcnow()
         self.email = email  # Optional for notifications

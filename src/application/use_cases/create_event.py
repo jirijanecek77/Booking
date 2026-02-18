@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import List
 
 from src.domain.entities import Event, TimeSlot
@@ -41,10 +41,15 @@ class CreateEventUseCase:
 
         # Create time slots
         for slot_data in time_slots:
+            start_time = slot_data["start_time"]
+            end_time = slot_data["end_time"]
+            duration = datetime.combine(date.min, end_time) - datetime.combine(date.min, start_time)
+            if duration != timedelta(minutes=30):
+                raise ValueError("Time slots must be 30 minutes long")
             time_slot = TimeSlot(
                 event_id=created_event.id,
-                start_time=slot_data["start_time"],
-                end_time=slot_data["end_time"],
+                start_time=start_time,
+                end_time=end_time,
                 max_capacity=slot_data["max_capacity"],
             )
             created_slot = await self.time_slot_repository.create(time_slot)

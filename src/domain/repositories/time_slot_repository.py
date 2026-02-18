@@ -29,6 +29,16 @@ class TimeSlotRepository(ABC):
         pass
 
     @abstractmethod
+    async def reserve_spots(self, slot_id: UUID, seats: int) -> bool:
+        """Reserve spots in a time slot if capacity allows."""
+        pass
+
+    @abstractmethod
+    async def release_spots(self, slot_id: UUID, seats: int) -> None:
+        """Release spots from a time slot."""
+        pass
+
+    @abstractmethod
     async def delete(self, slot_id: UUID) -> bool:
         """Delete a time slot."""
         pass

@@ -38,6 +38,7 @@ class BookingModel(Base):
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     attendee_name = Column(String(255), nullable=False)
     time_slot_id = Column(PGUUID(as_uuid=True), ForeignKey("time_slots.id"), nullable=False)
+    number_of_seats = Column(Integer, nullable=False, default=1)
     booking_token = Column(String(255), unique=True, nullable=False, index=True)
     email = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

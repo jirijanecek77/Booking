@@ -20,6 +20,7 @@ class CreateBookingUseCase:
         self,
         attendee_name: str,
         time_slot_id: UUID,
+        number_of_seats: int,
         email: Optional[str] = None,
     ) -> Booking:
         """
@@ -36,25 +37,33 @@ class CreateBookingUseCase:
         Raises:
             ValueError: If time slot is full or doesn't exist
         """
-        # Get time slot
+        # Basic validation and existence check
         time_slot = await self.time_slot_repository.get_by_id(time_slot_id)
         if not time_slot:
             raise ValueError("Time slot not found")
 
-        # Check availability
-        if not time_slot.is_available():
+        if not time_slot.is_available(number_of_seats):
             raise ValueError("Time slot is full")
 
-        # Create booking
         booking = Booking(
             attendee_name=attendee_name,
             time_slot_id=time_slot_id,
+            number_of_seats=number_of_seats,
             email=email,
         )
-        created_booking = await self.booking_repository.create(booking)
 
-        # Update slot capacity
-        time_slot.increment_bookings()
-        await self.time_slot_repository.update(time_slot)
+        session = getattr(self.booking_repository, "session", None)
+        if session:
+            async with session.begin():
+                reserved = await self.time_slot_repository.reserve_spots(
+                    time_slot_id,
+                    number_of_seats,
+                )
+                if not reserved:
+                    raise ValueError("Time slot is full")
+                return await self.booking_repository.create(booking)
 
-        return created_booking
+        reserved = await self.time_slot_repository.reserve_spots(time_slot_id, number_of_seats)
+        if not reserved:
+            raise ValueError("Time slot is full")
+        return await self.booking_repository.create(booking)
